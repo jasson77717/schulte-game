@@ -319,13 +319,23 @@
                 release: 0.1
             }
         }).toDestination();
+        // 新增開始遊戲音效的合成器
+        const startSynth = new Tone.MembraneSynth().toDestination(); // 敲擊樂器合成器，適合開始音效
+
+        // Mario 遊戲開始音效的音符序列
+        const marioNotes = ["C5", "E5", "G5", "C6"];
+        const marioDurations = ["16n", "16n", "16n", "8n"]; // 調整持續時間讓它聽起來更快
 
         /**
-         * 播放正確點擊音效。
+         * 播放正確點擊音效 (馬力歐開始音效)。
          */
         function playCorrectSound() {
-            // 播放一個短促的高音
-            correctSynth.triggerAttackRelease("C5", "8n");
+            let time = Tone.now();
+            // 播放一系列音符來模擬馬力歐遊戲開始音效
+            marioNotes.forEach((note, index) => {
+                correctSynth.triggerAttackRelease(note, marioDurations[index], time);
+                time += Tone.Time(marioDurations[index]).toSeconds(); // 累加時間，使音符依序播放
+            });
         }
 
         /**
@@ -334,6 +344,14 @@
         function playWrongSound() {
             // 播放一個短促的低音，模擬錯誤提示
             wrongSynth.triggerAttackRelease("C3", "16n");
+        }
+
+        /**
+         * 播放開始遊戲音效。
+         */
+        function playStartSound() {
+            // 播放一個類似鼓點的聲音
+            startSynth.triggerAttackRelease("G4", "8n");
         }
 
         /**
@@ -412,6 +430,8 @@
             if (Tone.context.state !== 'running') {
                 Tone.context.resume();
             }
+
+            playStartSound(); // 播放開始遊戲音效
 
             currentNumber = 1;
             currentNumberSpan.textContent = currentNumber;
@@ -504,5 +524,8 @@
             resetGame(); // 確保初始狀態正確
         };
     </script>
+</body>
+</html>
+
 </body>
 </html>
