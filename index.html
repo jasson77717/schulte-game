@@ -355,6 +355,19 @@
         }
 
         /**
+         * 播放遊戲完成語音提示。
+         */
+        function playCompletionVoice() {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance('恭喜挑戰成功');
+                utterance.lang = 'zh-TW'; // 設定語音語言為繁體中文
+                window.speechSynthesis.speak(utterance);
+            } else {
+                console.warn('您的瀏覽器不支持語音合成。');
+            }
+        }
+
+        /**
          * 生成並渲染舒爾特方格。
          * 數字會被隨機打亂。
          */
@@ -460,6 +473,7 @@
             const finalDuration = Date.now() - startTime;
             finalTimeSpan.textContent = formatTime(finalDuration);
             messageBox.style.display = 'flex'; // 顯示訊息框
+            playCompletionVoice(); // 播放語音提示
         }
 
         /**
@@ -524,8 +538,5 @@
             resetGame(); // 確保初始狀態正確
         };
     </script>
-</body>
-</html>
-
 </body>
 </html>
