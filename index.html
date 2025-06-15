@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>舒爾特方格遊戲</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- 引入 Tone.js 庫用於音效 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        /* 全局樣式和字體 */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            color: #333;
+        }
+
+        .game-container {
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .info-item {
+            background-color: #e6f0fa;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #4a69bd;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+            min-width: 120px;
+        }
+
+        #timer {
+            color: #e74c3c;
+            font-size: 1.2em;
+        }
+
+        #currentNumber {
+            color: #27ae60;
+            font-size: 1.2em;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr); /* 預設 5x5 */
+            gap: 8px;
+            width: 100%;
+            aspect-ratio: 1 / 1; /* 保持正方形 */
+            margin: 0 auto;
+            border-radius: 15px;
+            overflow: hidden; /* 確保圓角在內部單元格上也生效 */
+            background-color: #ecf0f1;
+            padding: 5px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.08);
+        }
+
+        .grid-cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #add8e6; /* 淺藍色 */
+            color: #333;
+            font-size: 1.5em;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            user-select: none; /* 防止數字被選中 */
+            padding: 5px; /* 確保內容不會頂到邊緣 */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+        }
+
+        .grid-cell:hover {
+            background-color: #87ceeb; /* 更深的藍色 */
+            transform: translateY(-2px);
+        }
+
+        .grid-cell.clicked {
+            background-color: #dcdcdc; /* 已點擊的顏色 */
+            color: #999;
+            cursor: default;
+            transform: none;
+            pointer-events: none; /* 禁用點擊 */
+        }
+
+        .grid-cell.correct {
+            background-color: #a8e6cf; /* 正確的顏色 */
+        }
+
+        .grid-cell.wrong {
+            background-color: #ffadad; /* 錯誤的顏色 */
+            animation: shake 0.3s;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background-color: #4CAF50; /* 綠色 */
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            outline: none; /* 移除點擊後的邊框 */
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button#resetButton {
+            background-color: #f44336; /* 紅色 */
+        }
+
+        button#resetButton:hover {
+            background-color: #da190b;
+        }
+
+        /* 遊戲完成訊息 */
+        .message-box {
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+            display: none; /* 默認隱藏 */
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            font-size: 1.2em;
+            color: #333;
+            max-width: 80%;
+            text-align: center;
+        }
+
+        .message-box h2 {
+            color: #27ae60;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+
+        .message-box button {
+            background-color: #3498db;
+            padding: 10px 20px;
+            font-size: 1.1em;
+        }
+
+        .message-box button:hover {
+            background-color: #2980b9;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            .info-panel {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .info-item {
+                width: 100%;
+                text-align: center;
+            }
+            .grid-cell {
+                font-size: 1.2em;
+            }
+            button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .game-container {
+                border-radius: 10px;
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+            .grid-cell {
+                font-size: 1em;
+                border-radius: 6px;
+            }
+            .grid-container {
+                gap: 5px;
+            }
+            .controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>舒爾特方格</h1>
+        <div class="info-panel">
+            <div class="info-item">當前數字: <span id="currentNumber">1</span></div>
+            <div class="info-item">計時: <span id="timer">00:00.000</span></div>
+        </div>
+
+        <div id="gridContainer" class="grid-container">
+            <!-- 方格將由 JavaScript 生成 -->
+        </div>
+
+        <div class="controls">
+            <button id="startButton">開始遊戲</button>
+            <button id="resetButton">重置</button>
+            <label for="gridSizeSelect" style="font-size: 1.1em; color: #555; display: flex; align-items: center; gap: 8px;">
+                網格大小:
+                <select id="gridSizeSelect" style="padding: 8px; border-radius: 8px; border: 1px solid #ccc; font-size: 1em;">
+                    <option value="3">3x3</option>
+                    <option value="5" selected>5x5</option>
+                    <option value="7">7x7</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <!-- 遊戲完成訊息框 -->
+    <div id="messageBox" class="message-box">
+        <h2>恭喜！</h2>
+        <p>您完成了舒爾特方格遊戲！</p>
+        <p>您的時間是: <span id="finalTime"></span></p>
+        <button id="closeMessageBox">確認</button>
+    </div>
+
+    <script>
+        const gridContainer = document.getElementById('gridContainer');
+        const currentNumberSpan = document.getElementById('currentNumber');
+        const timerSpan = document.getElementById('timer');
+        const startButton = document.getElementById('startButton');
+        const resetButton = document.getElementById('resetButton');
+        const gridSizeSelect = document.getElementById('gridSizeSelect');
+        const messageBox = document.getElementById('messageBox');
+        const finalTimeSpan = document.getElementById('finalTime');
+        const closeMessageBoxButton = document.getElementById('closeMessageBox');
+
+        let gridSize = parseInt(gridSizeSelect.value); // 網格大小 (例如 5 表示 5x5)
+        let totalCells = gridSize * gridSize;
+        let currentNumber = 1;
+        let timerInterval;
+        let startTime;
+        let gameActive = false;
+
+        // 初始化 Tone.js 合成器
+        const correctSynth = new Tone.Synth().toDestination();
+        const wrongSynth = new Tone.Synth({
+            oscillator: {
+                type: "sawtooth" // 使用鋸齒波，產生更刺耳的聲音
+            },
+            envelope: {
+                attack: 0.01,
+                decay: 0.1,
+                sustain: 0.0,
+                release: 0.1
+            }
+        }).toDestination();
+
+        /**
+         * 播放正確點擊音效。
+         */
+        function playCorrectSound() {
+            // 播放一個短促的高音
+            correctSynth.triggerAttackRelease("C5", "8n");
+        }
+
+        /**
+         * 播放錯誤點擊音效。
+         */
+        function playWrongSound() {
+            // 播放一個短促的低音，模擬錯誤提示
+            wrongSynth.triggerAttackRelease("C3", "16n");
+        }
+
+        /**
+         * 生成並渲染舒爾特方格。
+         * 數字會被隨機打亂。
+         */
+        function generateGrid() {
+            gridContainer.innerHTML = ''; // 清空現有網格
+            const numbers = Array.from({ length: totalCells }, (_, i) => i + 1); // 生成 1 到 totalCells 的數字陣列
+            shuffleArray(numbers); // 打亂數字
+
+            // 更新網格容器的 CSS Grid 模板列
+            gridContainer.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+
+            numbers.forEach(number => {
+                const cell = document.createElement('div');
+                cell.classList.add('grid-cell');
+                cell.textContent = number;
+                cell.dataset.number = number; // 將數字存儲在數據屬性中
+                cell.addEventListener('click', handleCellClick);
+                gridContainer.appendChild(cell);
+            });
+        }
+
+        /**
+         * 打亂陣列的 Fisher-Yates (Knuth) 演算法。
+         * @param {Array} array - 要打亂的陣列。
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]]; // 交換元素
+            }
+        }
+
+        /**
+         * 處理方格點擊事件。
+         * 檢查點擊的數字是否是當前要找的數字。
+         * @param {Event} event - 點擊事件。
+         */
+        function handleCellClick(event) {
+            if (!gameActive) return; // 如果遊戲未激活，則不處理點擊
+
+            const clickedNumber = parseInt(event.target.dataset.number);
+            const cell = event.target;
+
+            if (clickedNumber === currentNumber) {
+                // 正確點擊
+                playCorrectSound(); // 播放正確音效
+                cell.classList.add('clicked', 'correct'); // 添加 'clicked' 和 'correct' 類
+                currentNumber++;
+                currentNumberSpan.textContent = currentNumber;
+
+                if (currentNumber > totalCells) {
+                    // 遊戲完成
+                    endGame();
+                }
+            } else {
+                // 錯誤點擊
+                playWrongSound(); // 播放錯誤音效
+                cell.classList.add('wrong'); // 添加 'wrong' 類
+                setTimeout(() => {
+                    cell.classList.remove('wrong'); // 移除 'wrong' 類，以便可以再次觸發動畫
+                }, 300); // 錯誤動畫時間
+            }
+        }
+
+        /**
+         * 開始遊戲。
+         * 初始化遊戲狀態並啟動計時器。
+         */
+        function startGame() {
+            if (gameActive) return; // 防止重複開始
+
+            // 啟動 Tone.js 聲音上下文 (瀏覽器通常要求用戶互動才能啟動)
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+
+            currentNumber = 1;
+            currentNumberSpan.textContent = currentNumber;
+            gameActive = true;
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 10); // 每 10 毫秒更新計時器
+
+            // 禁用網格大小選擇和開始按鈕
+            gridSizeSelect.disabled = true;
+            startButton.disabled = true;
+
+            // 重新生成網格以確保所有單元格都可點擊
+            generateGrid();
+        }
+
+        /**
+         * 結束遊戲。
+         * 停止計時器並顯示遊戲完成訊息。
+         */
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            gridSizeSelect.disabled = false; // 重新啟用網格大小選擇
+            startButton.disabled = false; // 重新啟用開始按鈕
+
+            const finalDuration = Date.now() - startTime;
+            finalTimeSpan.textContent = formatTime(finalDuration);
+            messageBox.style.display = 'flex'; // 顯示訊息框
+        }
+
+        /**
+         * 更新計時器顯示。
+         */
+        function updateTimer() {
+            const elapsedTime = Date.now() - startTime;
+            timerSpan.textContent = formatTime(elapsedTime);
+        }
+
+        /**
+         * 將毫秒格式化為 MM:SS.msmsms 格式。
+         * @param {number} milliseconds - 經過的毫秒數。
+         * @returns {string} 格式化的時間字符串。
+         */
+        function formatTime(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            const ms = milliseconds % 1000;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+        }
+
+        /**
+         * 重置遊戲狀態。
+         * 停止計時器並重新初始化網格。
+         */
+        function resetGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            timerSpan.textContent = '00:00.000';
+            currentNumber = 1;
+            currentNumberSpan.textContent = currentNumber;
+            gridSizeSelect.disabled = false; // 重新啟用網格大小選擇
+            startButton.disabled = false; // 重新啟用開始按鈕
+            generateGrid(); // 重新生成網格
+            messageBox.style.display = 'none'; // 隱藏訊息框
+        }
+
+        /**
+         * 處理網格大小選擇的變化。
+         * 更新網格大小並重置遊戲。
+         */
+        function handleGridSizeChange() {
+            gridSize = parseInt(gridSizeSelect.value);
+            totalCells = gridSize * gridSize;
+            resetGame(); // 每次改變大小都重置遊戲
+        }
+
+        // 事件監聽器
+        startButton.addEventListener('click', startGame);
+        resetButton.addEventListener('click', resetGame);
+        gridSizeSelect.addEventListener('change', handleGridSizeChange);
+        closeMessageBoxButton.addEventListener('click', () => {
+            messageBox.style.display = 'none'; // 關閉訊息框
+            resetGame(); // 關閉後重置遊戲
+        });
+
+        // 頁面加載時初始化遊戲
+        window.onload = function() {
+            generateGrid();
+            resetGame(); // 確保初始狀態正確
+        };
+    </script>
+</body>
+</html>
