@@ -701,8 +701,14 @@
                 return;
             }
             try {
-                // 使用公共數據路徑：/artifacts/{appId}/public/data/schulte_leaderboard
-                const leaderboardRef = collection(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/public/data/schulte_leaderboard`);
+                // IMPORTANT: When deploying on GitHub Pages, __app_id is not defined.
+                // Replace 'default-app-id' with your actual Firebase Project ID if you want to use a specific project.
+                // You can find your Project ID in your Firebase Console -> Project settings -> General.
+                // This 'artifacts/{appId}/public/data/schulte_leaderboard' path is based on Canvas environment.
+                // For a standard Firebase project, you might simply use 'leaderboard_scores'.
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'schulte-game'; // <--- 請在這裡填入您的 Firebase 專案 ID
+                const leaderboardRef = collection(db, `artifacts/${appId}/public/data/schulte_leaderboard`);
+
                 await addDoc(leaderboardRef, {
                     userId: userId,
                     gridSize: gridSize,
@@ -726,7 +732,11 @@
                 return [];
             }
             try {
-                const leaderboardRef = collection(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/public/data/schulte_leaderboard`);
+                // IMPORTANT: When deploying on GitHub Pages, __app_id is not defined.
+                // Replace 'default-app-id' with your actual Firebase Project ID if you want to use a specific project.
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'schulte-game'; // <--- 請在這裡填入您的 Firebase 專案 ID
+                const leaderboardRef = collection(db, `artifacts/${appId}/public/data/schulte_leaderboard`);
+
                 const q = query(
                     leaderboardRef,
                     where("gridSize", "==", size)
@@ -800,27 +810,48 @@
 
             // Firebase 初始化
             try {
-                const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+                // --- 請在這裡填入您的 Firebase 專案配置資訊 ---
+                // 您可以從 Firebase Console (console.firebase.google.com) 中找到這些資訊。
+                // 進入您的專案 -> 專案設定 (Project settings) -> 一般 (General) -> 您的應用程式 (Your apps)。
+                // 點擊「Config」或「Add app」以獲取 JavaScript 配置。
+                const firebaseConfig = {
+                    apiKey: "AIzaSyDhLdUtHZoPHBE7TRi9RMcfR4FrsLH_lc0",
+                    authDomain: "schulte-game.firebaseapp.com",
+                    projectId: "schulte-game",
+                    storageBucket: "schulte-game.firebasestorage.app",
+                    messagingSenderId: "227127322210",
+                    appId: "1:227127322210:web:71ee5032589f3c0d6a933b"
+                };
+                // --------------------------------------------------
 
-                if (firebaseConfig) {
-                    appInstance = initializeApp(firebaseConfig); // 使用不同的變量名避免衝突
+                // 檢查是否仍在使用佔位符
+                if (firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.projectId === "YOUR_PROJECT_ID") {
+                    console.error("錯誤：Firebase 配置資訊仍包含佔位符。請在程式碼中填寫您的實際 Firebase 配置！");
+                    displayUserIdSpan.textContent = "無法獲取ID (配置佔位符)";
+                    return; // 停止初始化 Firebase
+                }
+
+
+                // 針對 Canvas 環境或 GitHub Pages 處理 appId
+                // 如果是在 Canvas 環境中，則使用 __app_id，否則使用您手動配置的 projectId
+                // 在這裡我們直接使用 firebaseConfig.projectId 作為 appId，因為在 GitHub Pages 環境中沒有 __app_id
+                const currentAppId = firebaseConfig.projectId;
+
+                // 確保 firebaseConfig 包含必要的鍵
+                if (firebaseConfig.apiKey && firebaseConfig.projectId) { 
+                    appInstance = initializeApp(firebaseConfig);
                     db = getFirestore(appInstance);
                     auth = getAuth(appInstance);
 
-                    // 匿名登入或使用自定義令牌
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== "") {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
+                    // 嘗試匿名登入。GitHub Pages 環境沒有 __initial_auth_token。
+                    await signInAnonymously(auth);
 
                     // 確保 auth.currentUser 不為 null 後再獲取 uid
                     if (auth.currentUser) {
                          userId = auth.currentUser.uid;
                     } else {
                          // Fallback for extremely rare cases or if anonymous signIn fails
-                         userId = crypto.randomUUID();
+                         userId = crypto.randomUUID(); // 如果無法獲取 UID，生成一個隨機 ID
                     }
 
                     console.log("Firebase initialized and user signed in:", userId);
@@ -829,8 +860,8 @@
                     // 載入預設的排行榜 (例如 5x5)
                     renderLeaderboard(gridSize);
                 } else {
-                    console.warn("Firebase 配置不可用。排行榜功能將無法使用。");
-                    displayUserIdSpan.textContent = "無法獲取ID";
+                    console.warn("Firebase 配置資訊不完整。排行榜功能將無法使用。請在程式碼中填寫您的 Firebase 配置。");
+                    displayUserIdSpan.textContent = "無法獲取ID (配置錯誤)";
                 }
             } catch (error) {
                 console.error("Firebase 初始化失敗:", error);
@@ -840,5 +871,3 @@
     </script>
 </body>
 </html>
-```
----
