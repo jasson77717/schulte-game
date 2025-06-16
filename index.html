@@ -71,6 +71,13 @@
             font-size: 1.2em;
         }
 
+        /* User ID display */
+        #displayUserId {
+            font-size: 0.9em;
+            word-break: break-all;
+            display: block; /* Ensure it takes its own line if needed */
+        }
+
         .grid-container {
             display: grid;
             grid-template-columns: repeat(5, 1fr); /* 預設 5x5 */
@@ -252,6 +259,102 @@
                 flex-direction: column;
             }
         }
+
+        /* 排行榜樣式 */
+        .leaderboard-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            width: 100%; /* Take full width within game-container */
+        }
+
+        .leaderboard-container h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .leaderboard-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .leaderboard-tabs .tab-button {
+            background-color: #ecf0f1;
+            color: #555;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: none; /* Override default button shadow */
+        }
+
+        .leaderboard-tabs .tab-button:hover {
+            background-color: #dde1e5;
+            transform: none; /* No translate for tabs */
+            box-shadow: none;
+        }
+
+        .leaderboard-tabs .tab-button.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #2980b9;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .leaderboard-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background-color: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .leaderboard-content th,
+        .leaderboard-content td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .leaderboard-content th {
+            background-color: #4a69bd;
+            color: white;
+            font-weight: bold;
+            font-size: 0.95em;
+            text-transform: uppercase;
+        }
+
+        .leaderboard-content tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .leaderboard-content tr:hover {
+            background-color: #e0e6ed;
+        }
+
+        .leaderboard-content td:first-child {
+            font-weight: bold;
+            width: 15%; /* Adjust width for rank */
+        }
+        .leaderboard-content td:nth-child(2) {
+            font-size: 0.9em; /* Smaller font for long IDs */
+            word-break: break-all; /* Ensure long IDs wrap */
+        }
+        .leaderboard-content #noScoresMessage {
+            text-align: center;
+            font-style: italic;
+            color: #777;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
@@ -260,6 +363,7 @@
         <div class="info-panel">
             <div class="info-item">當前數字: <span id="currentNumber">1</span></div>
             <div class="info-item">計時: <span id="timer">00:00.000</span></div>
+            <div class="info-item">您的ID: <span id="displayUserId"></span></div>
         </div>
 
         <div id="gridContainer" class="grid-container">
@@ -278,6 +382,31 @@
                 </select>
             </label>
         </div>
+
+        <!-- 排行榜區塊 -->
+        <div class="leaderboard-container">
+            <h2>排行榜</h2>
+            <div class="leaderboard-tabs">
+                <button class="tab-button" data-grid-size="3">3x3</button>
+                <button class="tab-button active" data-grid-size="5">5x5</button> <!-- Default active -->
+                <button class="tab-button" data-grid-size="7">7x7</button>
+            </div>
+            <div id="leaderboardContent" class="leaderboard-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>用戶ID</th>
+                            <th>時間</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 排行榜條目將由 JavaScript 生成 -->
+                    </tbody>
+                </table>
+                <p id="noScoresMessage" style="display: none;">目前沒有記錄。</p>
+            </div>
+        </div>
     </div>
 
     <!-- 遊戲完成訊息框 -->
@@ -288,7 +417,13 @@
         <button id="closeMessageBox">確認</button>
     </div>
 
-    <script>
+    <script type="module">
+        // Firebase modules import
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, FieldValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // DOM 元素引用
         const gridContainer = document.getElementById('gridContainer');
         const currentNumberSpan = document.getElementById('currentNumber');
         const timerSpan = document.getElementById('timer');
@@ -298,7 +433,14 @@
         const messageBox = document.getElementById('messageBox');
         const finalTimeSpan = document.getElementById('finalTime');
         const closeMessageBoxButton = document.getElementById('closeMessageBox');
+        const displayUserIdSpan = document.getElementById('displayUserId'); // 用戶ID顯示元素
 
+        // 排行榜相關 DOM 元素
+        const leaderboardTabs = document.querySelector('.leaderboard-tabs');
+        const leaderboardContent = document.getElementById('leaderboardContent');
+        const noScoresMessage = document.getElementById('noScoresMessage');
+
+        // 遊戲狀態變量
         let gridSize = parseInt(gridSizeSelect.value); // 網格大小 (例如 5 表示 5x5)
         let totalCells = gridSize * gridSize;
         let currentNumber = 1;
@@ -306,7 +448,7 @@
         let startTime;
         let gameActive = false;
 
-        // 初始化 Tone.js 合成器
+        // Tone.js 音效合成器
         const correctSynth = new Tone.Synth().toDestination();
         const wrongSynth = new Tone.Synth({
             oscillator: {
@@ -319,12 +461,17 @@
                 release: 0.1
             }
         }).toDestination();
-        // 新增開始遊戲音效的合成器
         const startSynth = new Tone.MembraneSynth().toDestination(); // 敲擊樂器合成器，適合開始音效
 
-        // Mario 遊戲開始音效的音符序列
+        // Mario 遊戲正確點擊音效的音符序列
         const marioNotes = ["C5", "E5", "G5", "C6"];
         const marioDurations = ["16n", "16n", "16n", "8n"]; // 調整持續時間讓它聽起來更快
+
+        // Firebase 服務實例
+        let appInstance;
+        let db;
+        let auth;
+        let userId; // 當前用戶的ID
 
         /**
          * 播放正確點擊音效 (馬力歐開始音效)。
@@ -474,6 +621,13 @@
             finalTimeSpan.textContent = formatTime(finalDuration);
             messageBox.style.display = 'flex'; // 顯示訊息框
             playCompletionVoice(); // 播放語音提示
+
+            // 如果 Firebase 已初始化，則保存分數並刷新排行榜
+            if (db && userId) {
+                saveScore(gridSize, finalDuration);
+                // 刷新當前網格大小的排行榜
+                renderLeaderboard(gridSize);
+            }
         }
 
         /**
@@ -521,6 +675,98 @@
             gridSize = parseInt(gridSizeSelect.value);
             totalCells = gridSize * gridSize;
             resetGame(); // 每次改變大小都重置遊戲
+            // 刷新排行榜到新選擇的網格大小
+            if (db) {
+                renderLeaderboard(gridSize);
+                // 更新排行榜按鈕的 active 狀態
+                document.querySelectorAll('.leaderboard-tabs .tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (parseInt(btn.dataset.gridSize) === gridSize) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+        }
+
+        // Firebase Firestore 相關函數
+
+        /**
+         * 將分數保存到 Firestore。
+         * @param {number} gridSize - 遊戲的網格大小。
+         * @param {number} time - 完成遊戲所需的時間 (毫秒)。
+         */
+        async function saveScore(gridSize, time) {
+            if (!db || !userId) {
+                console.error("Firestore 未初始化或用戶未認證。");
+                return;
+            }
+            try {
+                // 使用公共數據路徑：/artifacts/{appId}/public/data/schulte_leaderboard
+                const leaderboardRef = collection(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/public/data/schulte_leaderboard`);
+                await addDoc(leaderboardRef, {
+                    userId: userId,
+                    gridSize: gridSize,
+                    time: time, // 時間 (毫秒)
+                    timestamp: FieldValue.serverTimestamp() // 服務器時間戳
+                });
+                console.log("分數已成功保存！");
+            } catch (e) {
+                console.error("添加文檔時出錯: ", e);
+            }
+        }
+
+        /**
+         * 從 Firestore 獲取指定網格大小的排行榜數據。
+         * @param {number} size - 網格大小 (3, 5 或 7)。
+         * @returns {Array} 分數列表。
+         */
+        async function getLeaderboard(size) {
+            if (!db) {
+                console.error("Firestore 未初始化。");
+                return [];
+            }
+            try {
+                const leaderboardRef = collection(db, `artifacts/${typeof __app_id !== 'undefined' ? __app_id : 'default-app-id'}/public/data/schulte_leaderboard`);
+                const q = query(
+                    leaderboardRef,
+                    where("gridSize", "==", size)
+                );
+
+                const querySnapshot = await getDocs(q);
+                let scores = [];
+                querySnapshot.forEach((doc) => {
+                    scores.push(doc.data());
+                });
+                // 根據時間升序排序 (在內存中排序，因為 Firestore order by 可能需要索引)
+                scores.sort((a, b) => a.time - b.time);
+                return scores.slice(0, 10); // 只返回前 10 名
+            } catch (e) {
+                console.error("獲取排行榜時出錯: ", e);
+                return [];
+            }
+        }
+
+        /**
+         * 渲染排行榜到頁面。
+         * @param {number} size - 要渲染的網格大小的排行榜。
+         */
+        async function renderLeaderboard(size) {
+            const tbody = leaderboardContent.querySelector('tbody');
+            tbody.innerHTML = ''; // 清空當前排行榜
+
+            const scores = await getLeaderboard(size);
+
+            if (scores.length === 0) {
+                noScoresMessage.style.display = 'block';
+            } else {
+                noScoresMessage.style.display = 'none';
+                scores.forEach((score, index) => {
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = index + 1; // 排名
+                    row.insertCell().textContent = score.userId; // 顯示完整用戶ID
+                    row.insertCell().textContent = formatTime(score.time); // 格式化後的時間
+                });
+            }
         }
 
         // 事件監聽器
@@ -532,11 +778,67 @@
             resetGame(); // 關閉後重置遊戲
         });
 
-        // 頁面加載時初始化遊戲
-        window.onload = function() {
+        // 排行榜 Tab 按鈕事件監聽器
+        leaderboardTabs.addEventListener('click', (event) => {
+            if (event.target.classList.contains('tab-button')) {
+                // 移除所有 Tab 按鈕的 active 類
+                document.querySelectorAll('.leaderboard-tabs .tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                // 為點擊的 Tab 按鈕添加 active 類
+                event.target.classList.add('active');
+                const selectedGridSize = parseInt(event.target.dataset.gridSize);
+                renderLeaderboard(selectedGridSize); // 渲染選定網格大小的排行榜
+            }
+        });
+
+        // 頁面加載時初始化遊戲和 Firebase
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 初始化遊戲
             generateGrid();
-            resetGame(); // 確保初始狀態正確
-        };
+            resetGame();
+
+            // Firebase 初始化
+            try {
+                const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+                if (firebaseConfig) {
+                    appInstance = initializeApp(firebaseConfig); // 使用不同的變量名避免衝突
+                    db = getFirestore(appInstance);
+                    auth = getAuth(appInstance);
+
+                    // 匿名登入或使用自定義令牌
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token !== "") {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    // 確保 auth.currentUser 不為 null 後再獲取 uid
+                    if (auth.currentUser) {
+                         userId = auth.currentUser.uid;
+                    } else {
+                         // Fallback for extremely rare cases or if anonymous signIn fails
+                         userId = crypto.randomUUID();
+                    }
+
+                    console.log("Firebase initialized and user signed in:", userId);
+                    displayUserIdSpan.textContent = userId; // 顯示完整用戶ID
+
+                    // 載入預設的排行榜 (例如 5x5)
+                    renderLeaderboard(gridSize);
+                } else {
+                    console.warn("Firebase 配置不可用。排行榜功能將無法使用。");
+                    displayUserIdSpan.textContent = "無法獲取ID";
+                }
+            } catch (error) {
+                console.error("Firebase 初始化失敗:", error);
+                displayUserIdSpan.textContent = "初始化錯誤";
+            }
+        });
     </script>
 </body>
 </html>
+```
+---
